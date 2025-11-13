@@ -40,35 +40,35 @@ A full-stack **Product Management Application** built with **Flutter** (frontend
 
 ## 📁 Project Structure:
 
-product-management-system/
-├── back_end/
-│   ├── config/
-│   │   └── database.js
-│   ├── controllers/
-│   │   └── productController.js
-│   ├── routes/
-│   │   └── products.js
-│   ├── app.js
-│   └── package.json
-├── front_end/
-│   ├── lib/
-│   │   ├── models/
-│   │   │   └── product.dart
-│   │   ├── providers/
-│   │   │   └── product_provider.dart
-│   │   ├── services/
-│   │   │   └── api_service.dart
-│   │   ├── widgets/
-│   │   │   ├── search_bar.dart
-│   │   │   ├── sort_dropdown.dart
-│   │   │   └── export_button.dart
-│   │   └── screens/
-│   │       ├── product_list_screen.dart
-│   │       ├── add_product_screen.dart
-│   │       └── edit_product_screen.dart
-│   ├── pubspec.yaml
-│   └── main.dart
-└── README.md
+	product_crud_app/
+		├── back_end/
+		│ ├── config/
+		│ │ └── database.js
+		│ ├── controllers/
+		│ │ └── productController.js
+		│ ├── routes/
+		│ │ └── products.js
+		│ ├── app.js
+		│ └── package.json
+		├── front_end/
+		│ ├── lib/
+		│ │ ├── models/
+		│ │ │ └── product.dart
+		│ │ ├── providers/
+		│ │ │ └── product_provider.dart
+		│ │ ├── services/
+		│ │ │ └── api_service.dart
+		│ │ ├── widgets/
+		│ │ │ ├── search_bar.dart
+		│ │ │ ├── sort_dropdown.dart
+		│ │ │ └── export_button.dart
+		│ │ └── screens/
+		│ │ ├── product_list_screen.dart
+		│ │ ├── add_product_screen.dart
+		│ │ └── edit_product_screen.dart
+		│ ├── pubspec.yaml
+		│ └── main.dart
+		└── README.md
 
 
 ---
