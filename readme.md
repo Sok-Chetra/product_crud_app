@@ -13,8 +13,6 @@ A **Product CRUD Application** built with **Flutter** (frontend) and **Node.js +
 - [API Documentation](#-api-documentation)
 - [Environment Variables](#️-environment-variables)
 - [Running the Application](#-running-the-application)
-- [Usage Guide](#-usage-guide)
-- [Troubleshooting](#-troubleshooting)
 
 ---
 
