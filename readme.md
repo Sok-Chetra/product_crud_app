@@ -1,6 +1,6 @@
 # 🛍️ Product Management System
 
-A full-stack **Product Management Application** built with **Flutter** (frontend) and **Node.js + MySQL** (backend).
+A **Product CRUD Application** built with **Flutter** (frontend) and **Node.js + Express.js + MySQL** (backend).
 
 ---
 
@@ -87,7 +87,7 @@ A full-stack **Product Management Application** built with **Flutter** (frontend
 		2️⃣ Install dependencies
 			npm install
 
-		3️⃣ Database Setup *****
+		3️⃣ Database Setup
 
 			CREATE DATABASE product_management;
 			USE product_management;
