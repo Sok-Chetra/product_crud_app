@@ -200,16 +200,16 @@ product-management-system/
 
 ##### 🏃 Running the Application #####
 
-***** 1️⃣ Start the Backend *****
-	cd back_end
-	npm install
-	npm start
+	1️⃣ Start the Backend
+		cd back_end
+		npm install
+		npm start
 
-***** 2️⃣ Start the Frontend (in a new terminal) *****
-	cd front_end
-	flutter pub get
-	flutter run
+	2️⃣ Start the Frontend (in a new terminal)
+		cd front_end
+		flutter pub get
+		flutter run
 
-***** 3️⃣ Access the App *****
-	Mobile: Run on device/emulator
-	Web: flutter run -d chrome
+	3️⃣ Access the App
+		Mobile: Run on device/emulator
+		Web: flutter run -d chrome
