@@ -81,13 +81,13 @@ A full-stack **Product Management Application** built with **Flutter** (frontend
 
 	+ Installation Steps
 
-		***** 1️⃣ Navigate to the backend directory *****
+		1️⃣ Navigate to the backend directory
 			cd back_end
 
-		***** 2️⃣ Install dependencies *****
+		2️⃣ Install dependencies
 			npm install
 
-		***** 3️⃣ Database Setup *****
+		3️⃣ Database Setup *****
 
 			CREATE DATABASE product_management;
 			USE product_management;
@@ -101,7 +101,7 @@ A full-stack **Product Management Application** built with **Flutter** (frontend
 			updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 			);
 
-		***** 4️⃣ Configure Database *****
+		4️⃣ Configure Database
 			Update config/database.js with your MySQL credentials:
 
 				module.exports = {
@@ -111,7 +111,7 @@ A full-stack **Product Management Application** built with **Flutter** (frontend
 				database: 'product_management'
 				};
 
-		***** 5️⃣ Start the Server *****
+		5️⃣ Start the Server
 			npm start
 			npm run dev
 			The backend will run on http://localhost:3000
