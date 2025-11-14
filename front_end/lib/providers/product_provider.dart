@@ -94,7 +94,7 @@ class ProductProvider with ChangeNotifier {
     notifyListeners();
 
     // Simulate API delay
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 1000));
 
     _currentPage++;
 
