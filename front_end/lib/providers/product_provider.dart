@@ -1,98 +1,5 @@
-// import 'package:flutter/foundation.dart';
-// import '../models/product.dart';
-// import '../services/api_service.dart';
-
-// class ProductProvider with ChangeNotifier {
-//   final ApiService _apiService = ApiService();
-//   List<Product> _products = [];
-//   bool _isLoading = false;
-//   String _error = '';
-
-//   List<Product> get products => _products;
-//   bool get isLoading => _isLoading;
-//   String get error => _error;
-
-//   Future<void> fetchProducts() async {
-//     _isLoading = true;
-//     _error = '';
-//     notifyListeners();
-
-//     try {
-//       _products = await _apiService.getProducts();
-//       _error = '';
-//     } catch (e) {
-//       //   _error = e.toString();
-//     } finally {
-//       _isLoading = false;
-//       notifyListeners();
-//     }
-//   }
-
-//   Future<void> addProduct(Product product) async {
-//     _isLoading = true;
-//     notifyListeners();
-
-//     try {
-//       final newProduct = await _apiService.createProduct(product);
-//       _products.add(newProduct);
-//       _error = '';
-//     } catch (e) {
-//       //   _error = e.toString();
-//       rethrow;
-//     } finally {
-//       _isLoading = false;
-//       notifyListeners();
-//     }
-//   }
-
-//   Future<void> updateProduct(Product product) async {
-//     _isLoading = true;
-//     notifyListeners();
-
-//     try {
-//       final updatedProduct = await _apiService.updateProduct(product);
-//       final index = _products.indexWhere(
-//         (p) => p.productId == product.productId,
-//       );
-//       if (index != -1) {
-//         _products[index] = updatedProduct;
-//       }
-//       _error = '';
-//     } catch (e) {
-//       //   _error = e.toString();
-//       rethrow;
-//     } finally {
-//       _isLoading = false;
-//       notifyListeners();
-//     }
-//   }
-
-//   Future<void> deleteProduct(int productId) async {
-//     _isLoading = true;
-//     notifyListeners();
-
-//     try {
-//       await _apiService.deleteProduct(productId);
-//       _products.removeWhere((p) => p.productId == productId);
-//       _error = '';
-//     } catch (e) {
-//       //   _error = e.toString();
-//       rethrow;
-//     } finally {
-//       _isLoading = false;
-//       notifyListeners();
-//     }
-//   }
-
-//   void clearError() {
-//     _error = '';
-//     notifyListeners();
-//   }
-// }
-
 import 'dart:async';
-
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../services/api_service.dart';
 
@@ -100,6 +7,7 @@ class ProductProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
   List<Product> _products = [];
   List<Product> _filteredProducts = [];
+  List<Product> _allFilteredProducts = [];
   bool _isLoading = false;
   String _error = '';
 
@@ -108,12 +16,11 @@ class ProductProvider with ChangeNotifier {
   Timer? _debounceTimer;
 
   // Sorting
-
   ProductSort _currentSort = ProductSort.price;
   SortOrder _sortOrder = SortOrder.ascending;
 
   // Pagination
-  final int _pageSize = 5;
+  final int _pageSize = 6;
   int _currentPage = 0;
   bool _hasMore = true;
   bool _isLoadingMore = false;
@@ -121,6 +28,7 @@ class ProductProvider with ChangeNotifier {
   // Export
   bool _isExporting = false;
 
+  // Getters
   List<Product> get products => _filteredProducts;
   List<Product> get allProducts => _products;
   bool get isLoading => _isLoading;
@@ -140,7 +48,7 @@ class ProductProvider with ChangeNotifier {
     try {
       _products = await _apiService.getProducts();
       _error = '';
-      _applyFilters(); // Apply initial filters after loading
+      _resetAndApplyFilters();
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -152,11 +60,9 @@ class ProductProvider with ChangeNotifier {
   // Debounced search
   void searchProducts(String query) {
     _searchQuery = query;
-
+    _resetPagination();
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 500), () {
-      _currentPage = 0;
-      _hasMore = true;
       _applyFilters();
     });
   }
@@ -165,6 +71,7 @@ class ProductProvider with ChangeNotifier {
   void sortProducts(ProductSort sortBy, {SortOrder? order}) {
     _currentSort = sortBy;
     _sortOrder = order ?? _sortOrder;
+    _resetPagination();
     _applyFilters();
   }
 
@@ -173,42 +80,34 @@ class ProductProvider with ChangeNotifier {
     _sortOrder = _sortOrder == SortOrder.ascending
         ? SortOrder.descending
         : SortOrder.ascending;
+    _resetPagination();
     _applyFilters();
   }
 
   // Load more products for pagination
-  // In product_provider.dart, update the loadMoreProducts method:
   Future<void> loadMoreProducts() async {
     if (_isLoadingMore || !_hasMore) {
-      print(
-        '🔄 loadMoreProducts: isLoadingMore=$_isLoadingMore, hasMore=$_hasMore',
-      );
       return;
     }
 
     _isLoadingMore = true;
     notifyListeners();
 
-    print('🔄 Loading more products... Current page: $_currentPage');
-
-    // Simulate API delay for pagination
+    // Simulate API delay
     await Future.delayed(const Duration(milliseconds: 500));
 
     _currentPage++;
-    _applyFilters(preserveCurrent: true);
 
-    print(
-      '🔄 Loaded page $_currentPage. Total products: ${_filteredProducts.length}',
-    );
-    print('🔄 Has more: $_hasMore');
+    // Apply filters without resetting the current displayed items
+    _applyFiltersForLoadMore();
 
     _isLoadingMore = false;
     notifyListeners();
   }
 
-  // Apply all filters (search, sort, pagination)
-  void _applyFilters({bool preserveCurrent = false}) {
-    List<Product> result = _products;
+  // Apply filters for initial load, search, sort
+  void _applyFilters() {
+    List<Product> result = List.from(_products);
 
     // Apply search filter
     if (_searchQuery.isNotEmpty) {
@@ -224,55 +123,93 @@ class ProductProvider with ChangeNotifier {
     // Apply sorting
     result = _sortProducts(result);
 
-    // Apply pagination
-    final startIndex = 0;
-    final endIndex = preserveCurrent
-        ? ((_currentPage + 1) * _pageSize).clamp(0, result.length)
-        : _pageSize.clamp(0, result.length);
+    // Store complete filtered list
+    _allFilteredProducts = result;
 
-    if (preserveCurrent) {
-      _filteredProducts = result.sublist(0, endIndex);
-    } else {
-      _filteredProducts = result.sublist(startIndex, endIndex);
-    }
+    // Get paginated slice
+    final totalItems = _allFilteredProducts.length;
+    final endIndex = (_currentPage + 1) * _pageSize;
+    final actualEndIndex = endIndex.clamp(0, totalItems);
 
-    _hasMore = endIndex < result.length;
+    _filteredProducts = _allFilteredProducts.sublist(0, actualEndIndex);
+    _hasMore = actualEndIndex < totalItems;
+
     notifyListeners();
   }
 
+  // Apply filters for load more - preserves existing items
+  void _applyFiltersForLoadMore() {
+    List<Product> result = List.from(_products);
+
+    // Apply search filter
+    if (_searchQuery.isNotEmpty) {
+      result = result
+          .where(
+            (product) => product.productName.toLowerCase().contains(
+              _searchQuery.toLowerCase(),
+            ),
+          )
+          .toList();
+    }
+
+    // Apply sorting
+    result = _sortProducts(result);
+
+    // Store complete filtered list
+    _allFilteredProducts = result;
+
+    // Get paginated slice - but don't replace the existing list
+    final totalItems = _allFilteredProducts.length;
+    final endIndex = (_currentPage + 1) * _pageSize;
+    final actualEndIndex = endIndex.clamp(0, totalItems);
+
+    // Only update if we have new items to add
+    if (actualEndIndex > _filteredProducts.length) {
+      _filteredProducts = _allFilteredProducts.sublist(0, actualEndIndex);
+    }
+
+    _hasMore = actualEndIndex < totalItems;
+
+    notifyListeners();
+  }
+
+  // Reset and apply filters
+  void _resetAndApplyFilters() {
+    _resetPagination();
+    _applyFilters();
+  }
+
+  // Reset pagination
+  void _resetPagination() {
+    _currentPage = 0;
+    _hasMore = true;
+  }
+
+  // Sort products
   List<Product> _sortProducts(List<Product> products) {
-    products.sort((a, b) {
+    final sortedProducts = List<Product>.from(products);
+
+    sortedProducts.sort((a, b) {
       int comparison;
       switch (_currentSort) {
-        case ProductSort.name:
-          comparison = a.productName.compareTo(b.productName);
-          break;
         case ProductSort.price:
           comparison = a.price.compareTo(b.price);
           break;
         case ProductSort.stock:
           comparison = a.stock.compareTo(b.stock);
           break;
-        case ProductSort.id:
-          comparison = a.productId.compareTo(b.productId);
-          break;
       }
       return _sortOrder == SortOrder.ascending ? comparison : -comparison;
     });
-    return products;
-  }
 
-  // Reset to first page
-  void resetPagination() {
-    _currentPage = 0;
-    _hasMore = true;
-    _applyFilters();
+    return sortedProducts;
   }
 
   // Clear search
   void clearSearch() {
+    _searchController?.clear();
     _searchQuery = '';
-    _applyFilters();
+    _resetAndApplyFilters();
   }
 
   // Export methods
@@ -290,7 +227,7 @@ class ProductProvider with ChangeNotifier {
       final newProduct = await _apiService.createProduct(product);
       _products.add(newProduct);
       _error = '';
-      _applyFilters(); // Re-apply filters after adding
+      _resetAndApplyFilters();
     } catch (e) {
       _error = e.toString();
       rethrow;
@@ -313,7 +250,7 @@ class ProductProvider with ChangeNotifier {
         _products[index] = updatedProduct;
       }
       _error = '';
-      _applyFilters(); // Re-apply filters after updating
+      _resetAndApplyFilters();
     } catch (e) {
       _error = e.toString();
       rethrow;
@@ -331,7 +268,7 @@ class ProductProvider with ChangeNotifier {
       await _apiService.deleteProduct(productId);
       _products.removeWhere((p) => p.productId == productId);
       _error = '';
-      _applyFilters(); // Re-apply filters after deleting
+      _resetAndApplyFilters();
     } catch (e) {
       _error = e.toString();
       rethrow;
@@ -346,6 +283,12 @@ class ProductProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // For search controller cleanup
+  TextEditingController? _searchController;
+  void setSearchController(TextEditingController controller) {
+    _searchController = controller;
+  }
+
   @override
   void dispose() {
     _debounceTimer?.cancel();
@@ -353,7 +296,6 @@ class ProductProvider with ChangeNotifier {
   }
 }
 
-// Sorting enums
-enum ProductSort { name, price, stock, id }
+enum ProductSort { price, stock }
 
 enum SortOrder { ascending, descending }

@@ -37,8 +37,8 @@ dependencies:
   http: ^1.6.0
   pull_to_refresh: ^2.0.0
   cupertino_icons: ^1.0.8
-  syncfusion_flutter_pdf: ^23.1.44
-  file_picker: ^5.5.0
+  syncfusion_flutter_pdf: ^31.2.10
+  file_picker: ^10.3.6
   path_provider: ^2.1.1
   open_file: ^3.3.1
 

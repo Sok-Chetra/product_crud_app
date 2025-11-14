@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../providers/product_provider.dart';
 import '../models/product.dart';
@@ -59,20 +59,48 @@ class ExportButton extends StatelessWidget {
     ProductProvider provider,
   ) async {
     try {
+      // Check if there are products to export
+      if (provider.products.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No products to export'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
       // Generate file name with timestamp
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final String fileName =
           'products_$timestamp.${format == 'pdf' ? 'pdf' : 'csv'}';
 
+      // For macOS, use getDownloadsDirectory as default path
+      String? initialDirectory;
+      if (Platform.isMacOS) {
+        final downloadsDir = await getDownloadsDirectory();
+        initialDirectory = downloadsDir?.path;
+      }
+
       // Show file save dialog
       String? outputFile = await FilePicker.platform.saveFile(
         dialogTitle: 'Export Products',
         fileName: fileName,
+        initialDirectory: initialDirectory,
       );
 
       if (outputFile != null) {
+        // Add file extension if not present
+        if (!outputFile.endsWith('.${format == 'pdf' ? 'pdf' : 'csv'}')) {
+          outputFile += '.${format == 'pdf' ? 'pdf' : 'csv'}';
+        }
+
+        // Set exporting state
         provider.setExporting(true);
 
+        // Export based on format
         if (format == 'pdf') {
           await _exportToPdf(provider.allProducts, outputFile);
         } else {
@@ -84,13 +112,13 @@ class ExportButton extends StatelessWidget {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Products exported successfully to $fileName'),
+              content: Text(
+                'Products exported successfully to ${outputFile.split('/').last}',
+              ),
               backgroundColor: Colors.green,
             ),
           );
         }
-
-        // await OpenFile.open(outputFile);
       }
     } catch (e) {
       provider.setExporting(false);
@@ -106,29 +134,58 @@ class ExportButton extends StatelessWidget {
   }
 
   Future<void> _exportToPdf(List<Product> products, String filePath) async {
+    // Create a new PDF document
     final PdfDocument document = PdfDocument();
+
+    // Add a page
     final PdfPage page = document.pages.add();
+
+    // Get page size
+    final Size pageSize = page.getClientSize();
 
     // Add title
     final PdfFont titleFont = PdfStandardFont(PdfFontFamily.helvetica, 20);
+    final PdfFont contentFont = PdfStandardFont(PdfFontFamily.helvetica, 12);
+
     page.graphics.drawString(
       'Products Report',
       titleFont,
-      bounds: Rect.fromLTWH(0, 0, page.getClientSize().width, 50),
+      bounds: Rect.fromLTWH(0, 20, pageSize.width, 30),
+      format: PdfStringFormat(alignment: PdfTextAlignment.center),
+    );
+
+    // Add date
+    final String currentDate = DateTime.now().toString().split(' ')[0];
+    page.graphics.drawString(
+      'Generated on: $currentDate',
+      contentFont,
+      bounds: Rect.fromLTWH(0, 50, pageSize.width, 20),
+      format: PdfStringFormat(alignment: PdfTextAlignment.center),
     );
 
     // Create PDF grid
     final PdfGrid grid = PdfGrid();
     grid.columns.add(count: 4);
 
-    // Add header
+    // Set grid style
+    grid.style.cellPadding = PdfPaddings(left: 5, top: 5, right: 5, bottom: 5);
+
+    // Add header row
     final PdfGridRow headerRow = grid.headers.add(1)[0];
+    headerRow.style.backgroundBrush = PdfSolidBrush(PdfColor(200, 200, 200));
+    headerRow.style.textBrush = PdfSolidBrush(PdfColor(0, 0, 0));
+    headerRow.style.font = PdfStandardFont(
+      PdfFontFamily.helvetica,
+      12,
+      style: PdfFontStyle.bold,
+    );
+
     headerRow.cells[0].value = 'ID';
     headerRow.cells[1].value = 'Product Name';
     headerRow.cells[2].value = 'Price';
     headerRow.cells[3].value = 'Stock';
 
-    // Add rows
+    // Add data rows
     for (final product in products) {
       final PdfGridRow row = grid.rows.add();
       row.cells[0].value = product.productId.toString();
@@ -137,21 +194,37 @@ class ExportButton extends StatelessWidget {
       row.cells[3].value = product.stock.toString();
     }
 
+    // Calculate grid height and position
+    final double gridHeight = grid.rows.count * 20 + 50;
+    final double startY = 80;
+
     // Draw grid
     grid.draw(
       page: page,
-      bounds: Rect.fromLTWH(
-        0,
-        60,
-        page.getClientSize().width,
-        page.getClientSize().height - 60,
-      ),
+      bounds: Rect.fromLTWH(0, startY, pageSize.width, gridHeight),
+    );
+
+    // Add summary
+    final double totalValue = products.fold(
+      0,
+      (sum, product) => sum + (product.price * product.stock),
+    );
+    final String summary =
+        'Total Products: ${products.length} | Total Inventory Value: \$${totalValue.toStringAsFixed(2)}';
+
+    page.graphics.drawString(
+      summary,
+      PdfStandardFont(PdfFontFamily.helvetica, 12, style: PdfFontStyle.bold),
+      bounds: Rect.fromLTWH(0, startY + gridHeight + 10, pageSize.width, 20),
+      format: PdfStringFormat(alignment: PdfTextAlignment.center),
     );
 
     // Save document
-    final File file = File(filePath);
-    await file.writeAsBytes(await document.save());
+    final List<int> bytes = await document.save();
     document.dispose();
+
+    final File file = File(filePath);
+    await file.writeAsBytes(bytes, flush: true);
   }
 
   Future<void> _exportToCsv(List<Product> products, String filePath) async {
@@ -160,12 +233,24 @@ class ExportButton extends StatelessWidget {
     // Add header
     csv.writeln('ID,Product Name,Price,Stock');
 
-    // Add data
+    // Add data rows
     for (final product in products) {
+      // Escape product name in case it contains commas or quotes
+      final escapedName = product.productName.replaceAll('"', '""');
       csv.writeln(
-        '${product.productId},"${product.productName}",${product.price},${product.stock}',
+        '${product.productId},"$escapedName",${product.price},${product.stock}',
       );
     }
+
+    // Add summary
+    final double totalValue = products.fold(
+      0,
+      (sum, product) => sum + (product.price * product.stock),
+    );
+    csv.writeln();
+    csv.writeln(
+      'Summary,Total Products: ${products.length},Total Inventory Value: \$${totalValue.toStringAsFixed(2)}',
+    );
 
     final File file = File(filePath);
     await file.writeAsString(csv.toString());

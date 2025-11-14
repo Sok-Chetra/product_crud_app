@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart' hide SearchBar;
 import 'package:provider/provider.dart';
-import 'package:pull_to_refresh/pull_to_refresh.dart';
 import '../providers/product_provider.dart';
 import '../models/product.dart';
 import 'add_product_screen.dart';
@@ -17,37 +16,62 @@ class ProductListScreen extends StatefulWidget {
 }
 
 class _ProductListScreenState extends State<ProductListScreen> {
-  final RefreshController _refreshController = RefreshController();
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
+
+  double _lastScrollPosition = 0.0;
+  bool _isLoadingMore = false;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_scrollListener);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ProductProvider>().setSearchController(_searchController);
       context.read<ProductProvider>().fetchProducts();
     });
   }
 
   @override
   void dispose() {
-    _refreshController.dispose();
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
   void _scrollListener() {
+    final provider = context.read<ProductProvider>();
+
+    _lastScrollPosition = _scrollController.position.pixels;
+
     if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 100) {
-      context.read<ProductProvider>().loadMoreProducts();
+            _scrollController.position.maxScrollExtent - 100 &&
+        provider.hasMore &&
+        !provider.isLoadingMore &&
+        !_isLoadingMore) {
+      _loadMoreProducts();
     }
   }
 
-  void _onRefresh() async {
-    await context.read<ProductProvider>().fetchProducts();
-    _refreshController.refreshCompleted();
+  void _loadMoreProducts() async {
+    if (_isLoadingMore) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    final provider = context.read<ProductProvider>();
+    await provider.loadMoreProducts();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(_lastScrollPosition);
+      }
+      setState(() {
+        _isLoadingMore = false;
+      });
+    });
   }
 
   void _onSearchChanged(String query) {
@@ -88,19 +112,23 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   await context.read<ProductProvider>().deleteProduct(
                     product.productId,
                   );
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Product deleted successfully'),
-                    ),
-                  );
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Failed to delete product! ${e.toString()}',
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Product deleted successfully'),
                       ),
-                    ),
-                  );
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Failed to delete product! ${e.toString()}',
+                        ),
+                      ),
+                    );
+                  }
                 }
               },
               child: const Text('Delete', style: TextStyle(color: Colors.red)),
@@ -118,63 +146,106 @@ class _ProductListScreenState extends State<ProductListScreen> {
         title: const Text('Products'),
         actions: const [ExportButton()],
       ),
-      body: SmartRefresher(
-        controller: _refreshController,
-        onRefresh: _onRefresh,
-        enablePullDown: true,
-        enablePullUp: false,
-        header: const ClassicHeader(
-          completeText: 'Refresh completed',
-          idleText: 'Pull down to refresh',
-          releaseText: 'Release to refresh',
-          refreshingText: 'Refreshing...',
-        ),
-        child: Column(
-          children: [
-            // Search and Sort Controls
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  SearchBar(
-                    controller: _searchController,
-                    onChanged: _onSearchChanged,
-                    onClear: _clearSearch,
-                  ),
-                  const SizedBox(height: 12),
-                  SortDropdown(
-                    onSortChanged: _onSortChanged,
-                    onOrderToggled: _toggleSortOrder,
-                  ),
-                ],
-              ),
+      body: Column(
+        children: [
+          // Search and Sort Controls
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                SearchBar(
+                  controller: _searchController,
+                  onChanged: _onSearchChanged,
+                  onClear: _clearSearch,
+                ),
+                const SizedBox(height: 12),
+                SortDropdown(
+                  onSortChanged: _onSortChanged,
+                  onOrderToggled: _toggleSortOrder,
+                ),
+              ],
             ),
+          ),
 
-            // Product List
-            Expanded(
-              child: Consumer<ProductProvider>(
-                builder: (context, provider, child) {
-                  if (provider.isLoading && provider.products.isEmpty) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+          // Refresh indicator
+          Consumer<ProductProvider>(
+            builder: (context, provider, child) {
+              if (provider.isLoading && provider.products.isEmpty) {
+                return const LinearProgressIndicator();
+              }
+              return const SizedBox.shrink();
+            },
+          ),
 
-                  if (provider.error.isNotEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text('Error: ${provider.error}'),
-                          const SizedBox(height: 20),
-                          ElevatedButton(
-                            onPressed: () => provider.fetchProducts(),
-                            child: const Text('Retry'),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
+          // Product List
+          Expanded(
+            child: Consumer<ProductProvider>(
+              builder: (context, provider, child) {
+                if (provider.isLoading && provider.products.isEmpty) {
+                  return const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('Loading products...'),
+                      ],
+                    ),
+                  );
+                }
 
-                  return ListView.builder(
+                if (provider.error.isNotEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Error: ${provider.error}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: () => provider.fetchProducts(),
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                if (provider.products.isEmpty) {
+                  return const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.inventory_2, size: 64, color: Colors.grey),
+                        SizedBox(height: 16),
+                        Text(
+                          'No products found',
+                          style: TextStyle(fontSize: 18, color: Colors.grey),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Add your first product using the + button',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    await provider.fetchProducts();
+                  },
+                  child: ListView.builder(
                     controller: _scrollController,
                     itemCount:
                         provider.products.length + (provider.hasMore ? 1 : 0),
@@ -184,14 +255,14 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       }
 
                       final product = provider.products[index];
-                      return _buildProductItem(product);
+                      return _buildProductItem(product, index);
                     },
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
@@ -205,10 +276,20 @@ class _ProductListScreenState extends State<ProductListScreen> {
     );
   }
 
-  Widget _buildProductItem(Product product) {
+  Widget _buildProductItem(Product product, int index) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: Colors.blue[100],
+          child: Text(
+            '${index + 1}',
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.blue,
+            ),
+          ),
+        ),
         title: Text(
           product.productName,
           style: const TextStyle(fontWeight: FontWeight.bold),
@@ -218,6 +299,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
           children: [
             Text('Price: \$${product.price.toStringAsFixed(2)}'),
             Text('Stock: ${product.stock}'),
+            Text(
+              'ID: ${product.productId}',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
           ],
         ),
         trailing: Row(
@@ -248,16 +333,26 @@ class _ProductListScreenState extends State<ProductListScreen> {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Center(
-        child: provider.isLoadingMore
-            ? const CircularProgressIndicator()
+        child: provider.isLoadingMore || _isLoadingMore
+            ? const Column(
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 8),
+                  Text('Loading more products...'),
+                ],
+              )
             : provider.hasMore
             ? ElevatedButton(
-                onPressed: provider.loadMoreProducts,
+                onPressed: _loadMoreProducts,
                 child: const Text('Load More'),
               )
-            : provider.products.isEmpty
-            ? const Text('No products found')
-            : const Text('No more products'),
+            : const Column(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green, size: 48),
+                  SizedBox(height: 8),
+                  Text('All products loaded'),
+                ],
+              ),
       ),
     );
   }
