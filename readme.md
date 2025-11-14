@@ -87,8 +87,8 @@ A **Product CRUD Application** built with **Flutter** (frontend) and **Node.js +
 
 		3️⃣ Database Setup
 
-			CREATE DATABASE product_management;
-			USE product_management;
+			CREATE DATABASE productDB;
+			USE productDB;
 
 			CREATE TABLE products (
 			PRODUCTID INT AUTO_INCREMENT PRIMARY KEY,
